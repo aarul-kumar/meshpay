@@ -118,11 +118,11 @@ Transactions travel through multiple unknown intermediary devices before reachin
 
 To preserve confidentiality and integrity:
 
-- AES-256 encrypts transaction payloads
+- AES-256 encrypts transaction data
 - RSA-OAEP securely wraps AES session keys
 - AES-GCM authentication tags detect tampering automatically
 
-Because AES-GCM provides authenticated encryption, any payload modification immediately invalidates the integrity check during backend decryption.
+Because AES-GCM provides authenticated encryption, any modification immediately invalidates the integrity check during backend decryption.
 
 ### Problem 2: Concurrent Duplicate Ingestion (The Duplicate-Storm Problem)
 
