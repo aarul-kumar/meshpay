@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MeshPay</title>
+    <style>
+        :root {
+            /* Apple-inspired color palette */
+            --bg-main: #f5f5f7;
+            --bg-card: #ffffff;
+            --text-main: #1d1d1f;
+            --text-muted: #86868b;
+            --border-color: rgba(0, 0, 0, 0.08);
+            --primary: #0071e3;
+            --primary-hover: #0077ed;
+            --secondary: #f5f5f7;
+            --secondary-hover: #e8e8ed;
+            --secondary-text: #1d1d1f;
+            --success: #34c759;
+            --danger: #ff3b30;
+            --danger-bg: #fff0f0;
+            --warning: #ff9f0a;
+            --font-main: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        body {
+            font-family: var(--font-main);
+            margin: 0;
+            padding: 60px 24px;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            line-height: 1.47059;
+            font-weight: 400;
+            letter-spacing: -0.022em;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Header Setup */
+        header {
+            text-align: center;
+            margin-bottom: 56px;
+        }
+
+        h1 {
+            font-size: 48px;
+            line-height: 1.08349;
+            font-weight: 700;
+            letter-spacing: -0.003em;
+            margin: 0 0 12px 0;
+            color: var(--text-main);
+        }
+
+        .subtitle {
+            font-size: 21px;
+            line-height: 1.381;
+            font-weight: 400;
+            letter-spacing: 0.011em;
+            color: var(--text-muted);
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        /* Structural Layout */
+        .grid {
+            display: grid;
+            gap: 24px;
+        }
+
+        .grid-2 {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .grid-sidebar {
+            grid-template-columns: 1.5fr 1fr;
+        }
+
+        @media (max-width: 1024px) {
+
+            .grid-sidebar,
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+
+            h1 {
+                font-size: 40px;
+            }
+        }
+
+        /* Advanced Card Styling (Apple Widget Style) */
+        .card {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 32px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+            border: 1px solid rgba(0, 0, 0, 0.04);
+            transition: box-shadow 0.3s ease;
+        }
+
+        .card h2 {
+            font-size: 24px;
+            font-weight: 600;
+            margin: 0 0 24px 0;
+            letter-spacing: -0.01em;
+            color: var(--text-main);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Control / Flow Section */
+        .flow-step {
+            display: flex;
+            align-items: flex-start;
+            padding: 24px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .flow-step:last-of-type {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .flow-step:first-of-type {
+            padding-top: 0;
+        }
+
+        .step-num {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--text-main);
+            color: white;
+            border-radius: 50%;
+            min-width: 32px;
+            height: 32px;
+            font-size: 15px;
+            font-weight: 600;
+            margin-right: 20px;
+            margin-top: 2px;
+        }
+
+        .step-content {
+            flex: 1;
+        }
+
+        .step-title {
+            font-size: 17px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--text-main);
+        }
+
+        .interactive-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* Inputs and Interactive Elements */
+        input,
+        select {
+            background: var(--bg-card);
+            color: var(--text-main);
+            border: 1px solid #d2d2d7;
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-size: 15px;
+            font-family: inherit;
+            outline: none;
+            transition: all 0.2s ease;
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        select {
+            padding-right: 32px;
+            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2386868b%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+            background-repeat: no-repeat, repeat;
+            background-position: right 12px top 50%, 0 0;
+            background-size: 10px auto, 100%;
+        }
+
+        input:focus,
+        select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.2);
+        }
+
+        /* Typography & Controls */
+        .arrow-sep {
+            color: var(--text-muted);
+            font-weight: 500;
+            padding: 0 4px;
+        }
+
+        .input-group {
+            display: inline-flex;
+            align-items: center;
+            position: relative;
+        }
+
+        .input-prefix {
+            position: absolute;
+            left: 16px;
+            color: var(--text-main);
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        .input-with-prefix {
+            padding-left: 32px;
+        }
+
+        /* Buttons Framework (Apple Pill Style) */
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 980px;
+            /* Maximum pill shape */
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            font-family: inherit;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+            transform: scale(0.98);
+        }
+
+        button.secondary {
+            background-color: var(--secondary);
+            color: var(--secondary-text);
+        }
+
+        button.secondary:hover {
+            background-color: var(--secondary-hover);
+        }
+
+        button.danger {
+            background-color: var(--danger-bg);
+            color: var(--danger);
+        }
+
+        button.danger:hover {
+            background-color: #ffe5e5;
+        }
+
+        /* Device States Styling (Widgets) */
+        .device-container {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .device {
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 20px;
+            background: var(--bg-card);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+            transition: transform 0.2s ease;
+        }
+
+        .device:hover {
+            transform: translateY(-2px);
+        }
+
+        .device.bridge {
+            border: 1px solid #d4ebd9;
+            background: linear-gradient(180deg, #f4fbf5 0%, #ffffff 100%);
+        }
+
+        .device.offline {
+            background: var(--secondary);
+            border: 1px solid transparent;
+        }
+
+        .device-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .device-id {
+            font-weight: 600;
+            font-size: 17px;
+            color: var(--text-main);
+        }
+
+        .badge {
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 980px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .badge-online {
+            background: #e3f5e1;
+            color: #1a7b2b;
+        }
+
+        .badge-offline {
+            background: #e5e5ea;
+            color: #86868b;
+        }
+
+        .device-meta {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        .packet-pool {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .packet-id {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            background: #f5f5f7;
+            color: var(--text-main);
+            padding: 4px 10px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        /* Metrics Display */
+        .metric-badge {
+            font-size: 13px;
+            background: #f5f5f7;
+            color: var(--text-main);
+            padding: 6px 14px;
+            border-radius: 980px;
+            font-weight: 600;
+        }
+
+        /* Tables Architecture */
+        .table-container {
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            overflow: hidden;
+            background: var(--bg-card);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 15px;
+        }
+
+        th,
+        td {
+            padding: 16px 20px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background: rgba(245, 245, 247, 0.5);
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background-color: rgba(245, 245, 247, 0.4);
+        }
+
+        .balance {
+            font-family: var(--font-mono);
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        /* Execution Ledger Badges */
+        .status-badge {
+            display: inline-block;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 980px;
+            text-transform: capitalize;
+        }
+
+        .status-SETTLED {
+            background: #e3f5e1;
+            color: #1a7b2b;
+        }
+
+        .status-REJECTED {
+            background: var(--danger-bg);
+            color: var(--danger);
+        }
+
+        .status-DUPLICATE_DROPPED {
+            background: #fff5e5;
+            color: #c96700;
+        }
+
+        .status-INVALID {
+            background: var(--danger-bg);
+            color: var(--danger);
+        }
+
+        /* Infrastructure Terminal Logs */
+        #log {
+            background: #1d1d1f;
+            color: #32d74b;
+            padding: 24px;
+            border-radius: 16px;
+            font-family: var(--font-mono);
+            font-size: 13px;
+            height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.2);
+            line-height: 1.6;
+        }
+
+        /* Custom scrollbar for log */
+        #log::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #log::-webkit-scrollbar-track {
+            background: #1d1d1f;
+        }
+
+        #log::-webkit-scrollbar-thumb {
+            background: #424245;
+            border-radius: 4px;
+        }
+
+        #log::-webkit-scrollbar-thumb:hover {
+            background: #5c5c5f;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>MeshPay</h1>
+            <p class="subtitle">
+                Distributed Offline Payment & Settlement Engine
+            </p>
+        </header>
+
+        <div class="card" style="margin-bottom: 24px;">
+            <h2>Transaction Flow Execution</h2>
+
+            <div class="flow-step">
+                <div class="step-num">1</div>
+                <div class="step-content">
+                    <div class="step-title">Generate Encrypted Payment Packet</div>
+                    <div class="interactive-row">
+                        <select id="senderVpa">
+                            <option>alice@demo</option>
+                            <option>bob@demo</option>
+                            <option>carol@demo</option>
+                        </select>
+                        <span class="arrow-sep">→</span>
+                        <select id="receiverVpa">
+                            <option>bob@demo</option>
+                            <option>carol@demo</option>
+                            <option>alice@demo</option>
+                            <option>dave@demo</option>
+                        </select>
+
+                        <div class="input-group">
+                            <span class="input-prefix">₹</span>
+                            <input type="number" id="amount" value="500" style="width: 120px" class="input-with-prefix">
+                        </div>
+
+                        <input type="text" id="pin" value="1234" style="width: 90px; text-align: center;" maxlength="4"
+                            placeholder="PIN">
+                        <button onclick="sendPacket()">Broadcast Packet</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flow-step">
+                <div class="step-num">2</div>
+                <div class="step-content">
+                    <div class="step-title">Propagate Packet Across Mesh Network</div>
+                    <div class="interactive-row">
+                        <button class="secondary" onclick="gossip()">Run Gossip Round</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flow-step">
+                <div class="step-num">3</div>
+                <div class="step-content">
+                    <div class="step-title">Upload Packets Through Internet-Connected Bridge Node</div>
+                    <div class="interactive-row">
+                        <button class="secondary" onclick="flushBridges()">Trigger Parallel Ingestion</button>
+                        <button class="danger" onclick="resetMesh()" style="margin-left: auto;">Reset Simulation
+                            State</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-sidebar">
+            <div class="card">
+                <h2>Mesh Network Topology State</h2>
+                <div id="devices" class="device-container"></div>
+            </div>
+
+            <div class="card">
+                <h2>
+                    Account Ledger
+                    <span class="metric-badge" id="cacheInfoBadge">Cache: 0 keys</span>
+                </h2>
+                <p id="cacheInfo" style="display: none;"></p>
+
+                <div class="table-container">
+                    <table id="accounts-table">
+                        <thead>
+                            <tr>
+                                <th>VPA</th>
+                                <th>Holder</th>
+                                <th>Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 24px">
+            <h2>Settlement Ledger Boundary</h2>
+            <div class="table-container">
+                <table id="tx-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>From</th>
+                            <th>To</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                            <th>Bridge Node</th>
+                            <th>Hops</th>
+                            <th>Settled At</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 24px">
+            <h2>System Activity Node Log</h2>
+            <div id="log"></div>
+        </div>
+    </div>
+
+    <script>
+        function log(msg) {
+            const el = document.getElementById('log');
+            el.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg + '\n' + el.textContent;
+        }
+
+        async function refresh() {
+            // Mesh state
+            const m = await fetch('/api/mesh/state').then(r => r.json());
+            const devicesDiv = document.getElementById('devices');
+            devicesDiv.innerHTML = m.devices.map(d => `
+                <div class="device ${d.hasInternet ? 'bridge' : 'offline'}">
+                    <div class="device-header">
+                        <span class="device-id">${d.deviceId}</span>
+                        <span class="badge ${d.hasInternet ? 'badge-online' : 'badge-offline'}">
+                            ${d.hasInternet ? 'Online Bridge' : 'Offline Node'}
+                        </span>
+                    </div>
+                    <div class="device-meta">Memory buffer queue allocation: <strong>${d.packetCount}</strong> discrete payload(s)</div>
+                    <div class="packet-pool">${d.packetIds.map(id => `<span class="packet-id">${id.substring(0, 8)}...</span>`).join('')}</div>
+                </div>
+            `).join('');
+
+            // Standardizing back-compat with the raw script string allocations
+            document.getElementById('cacheInfo').textContent = `Idempotency cache size: ${m.idempotencyCacheSize}`;
+            document.getElementById('cacheInfoBadge').textContent = `Idempotency Keys: ${m.idempotencyCacheSize}`;
+
+            // Accounts Ledger Ingestion
+            const accs = await fetch('/api/accounts').then(r => r.json());
+            document.querySelector('#accounts-table tbody').innerHTML = accs.map(a => `
+                <tr>
+                    <td>${a.vpa}</td>
+                    <td>${a.holderName}</td>
+                    <td class="balance">₹${parseFloat(a.balance).toFixed(2)}</td>
+                </tr>
+            `).join('');
+
+            // Transactions Process Block
+            const txs = await fetch('/api/transactions').then(r => r.json());
+            document.querySelector('#tx-table tbody').innerHTML = txs.map(t => `
+                <tr>
+                    <td style="font-family: var(--font-mono); font-size: 13px; color: var(--text-muted);">${t.id}</td>
+                    <td>${t.senderVpa}</td>
+                    <td>${t.receiverVpa}</td>
+                    <td class="balance">₹${parseFloat(t.amount).toFixed(2)}</td>
+                    <td><span class="status-badge status-${t.status}">${t.status.replace('_', ' ').toLowerCase()}</span></td>
+                    <td style="font-family: var(--font-mono); font-size: 13px; color: var(--text-muted);">${t.bridgeNodeId || '—'}</td>
+                    <td style="font-weight: 500; text-align: center;">${t.hopCount}</td>
+                    <td style="color: var(--text-muted); font-size: 13px;">${new Date(t.settledAt).toLocaleTimeString()}</td>
+                </tr>
+            `).join('');
+        }
+
+        async function sendPacket() {
+            const body = {
+                senderVpa: document.getElementById('senderVpa').value,
+                receiverVpa: document.getElementById('receiverVpa').value,
+                amount: parseFloat(document.getElementById('amount').value),
+                pin: document.getElementById('pin').value,
+                ttl: 5,
+                startDevice: 'phone-alice'
+            };
+            const r = await fetch('/api/demo/send', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            }).then(r => r.json());
+            log(`Packet ${r.packetId.substring(0, 8)} encrypted & injected at ${r.injectedAt} (TTL ${r.ttl})`);
+            log(`Ciphertext payload signature (truncated): ${r.ciphertextPreview}`);
+            refresh();
+        }
+
+        async function gossip() {
+            const r = await fetch('/api/mesh/gossip', { method: 'POST' }).then(r => r.json());
+            log(`Gossip Convergence: ${r.transfers} concurrent transfer(s) executed across topology — ${JSON.stringify(r.deviceCounts)}`);
+            refresh();
+        }
+
+        async function flushBridges() {
+            const r = await fetch('/api/mesh/flush', { method: 'POST' }).then(r => r.json());
+            log(`Ingestion pipeline initialized: ${r.uploadsAttempted} edge bridge upload(s) pushed to Spring gateway.`);
+            r.results.forEach(res => {
+                log(`[Gateway Resolution] Bridge: ${res.bridgeNode} | Packet Hash: ${res.packetId.substring(0, 8)}... → Outcome: ${res.outcome}` +
+                    (res.reason ? ` Reason: [${res.reason}]` : ''));
+            });
+            refresh();
+        }
+
+        async function resetMesh() {
+            await fetch('/api/mesh/reset', { method: 'POST' });
+            log('Simulation State Reset: Distributed mesh devices and centralized database idempotency cache contexts flushed.');
+            refresh();
+        }
+
+        refresh();
+        setInterval(refresh, 3000);
+    </script>
+</body>
+
+</html>
