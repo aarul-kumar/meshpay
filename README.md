@@ -1,95 +1,112 @@
 # MeshPay: Distributed Offline Payment & Settlement Engine
 
-MeshPay is a distributed offline payment settlement engine focused on cryptographic integrity, deferred synchronization, and exactly-once settlement under intermittent connectivity.
+MeshPay is a distributed offline payment settlement engine that makes digital payments possible even when users temporarily lose internet connectivity.
 
-Encrypted transaction payloads propagate peer-to-peer across mesh-connected nodes until an internet-enabled bridge node synchronizes settlement with the backend infrastructure. 
+Instead of sending money directly through the internet, encrypted transaction packets propagate device-to-device across a local mesh network until any bridge node reconnects online and synchronizes settlement with the backend ledger.
 
-The architecture focuses on backend reliability patterns such as fault-tolerant transaction routing, hybrid cryptography, and idempotent settlement under unreliable network conditions.
+The project focuses on backend engineering concepts such as:
+
+- Secure hybrid cryptography
+- Idempotent transaction processing
+- Exactly-once settlement
+- Offline synchronization
+- Replay attack protection
+- Concurrent duplicate prevention
+- Fault-tolerant backend design
+
+<img width="1114" height="522" alt="meshpay" src="https://github.com/user-attachments/assets/9935e9bd-9c23-4218-a454-6eac08ab1db6" />
+
 
 ## Why Offline Settlement Matters
 
-Imagine two users attempting to exchange money inside a subway tunnel, disaster zone, or rural area without cellular coverage.
+Imagine two users attempting to send money inside:
 
-MeshPay models how encrypted payment instructions can propagate device-to-device across a local mesh network until any participant regains internet connectivity and synchronizes the transaction with the backend ledger.
+- A subway tunnel
+- A disaster zone
+- A rural area with weak signal
+- A crowded stadium with no network connectivity
+
+Normally, digital payments fail completely without internet access.
+
+Through MeshPay, encrypted payment instructions can still propagate across nearby devices and later reach the backend once any participant regains internet connectivity.
 
 ---
 
 # Key Features
 
 ## Hybrid End-to-End Encryption
-Transactions maintain strict confidentiality and data integrity across untrusted intermediaries using a dual-layered cryptographic implementation:
-* **Key Exchange:** RSA-OAEP (2048-bit) securely wraps and transmits ephemeral session keys.
-* **Authenticated Encryption:** AES-256-GCM seals the dynamic transaction data, generating an explicit authentication tag.
+Every transaction is encrypted before leaving the sender’s device.
 
-Intermediate routing nodes can relay packets across the ad-hoc network but are structurally prevented from reading transaction contents, modifying data fields, or forging settlement requests.
+MeshPay implements a hybrid encryption model using:
+
+- **RSA-2048 (RSA-OAEP)** for secure AES session key exchange
+- **AES-256-GCM** for authenticated transaction encryption
+- **SHA-256 hashing** for duplicate detection and integrity tracking
+
+Because RSA cannot efficiently encrypt large dynamic transaction data directly, the system uses a hybrid encryption envelope:
+
+1. A temporary AES-256 session key encrypts the transaction data
+2. The AES key is securely encrypted using the server’s RSA public key
+3. AES-GCM generates an authentication tag that detects any tampering
+
+Intermediate devices can forward encrypted packets, but they cannot:
+
+- Read transaction contents
+- Modify sender or receiver data
+- Alter transaction amounts
+- Forge settlement requests
+
+If even one bit changes inside the encrypted transaction, AES-GCM integrity verification fails and the backend rejects it.
 
 ## Idempotent Concurrent Settlement
-In decentralized mesh environments, identical data packets routinely flood the backend through overlapping bridge gateways. MeshPay guarantees **exactly-once processing** via an early-stage defensive pipeline:
-* **Pre-Decryption Evaluation:** Ingested packets are uniquely fingerprinted using a SHA-256 hash of their raw *ciphertext*.
-* **Atomic Compare-and-Set:** An in-memory cache checks uniqueness via atomic operations, modeling distributed Redis `SETNX` semantics.
-* Racing duplicate packets are immediately short-circuited and dropped (`DUPLICATE_DROPPED`) before executing expensive decryption or database actions.
+Offline mesh environments naturally create duplicate packet delivery.
+
+The same transaction may arrive simultaneously from multiple bridge devices once connectivity is restored.
+
+MeshPay guarantees exactly-once settlement using:
+
+- SHA-256 ciphertext hashing
+- Atomic compare-and-set operations
+- In-memory idempotency tracking
+- Database-level uniqueness constraints
+
+Duplicate packets are rejected before expensive decryption or settlement logic executes.
+
+The idempotency layer models how distributed systems commonly use Redis `SETNX` semantics for atomic uniqueness claims.
 
 ## Distributed Mesh Routing
-The system models a decentralized packet management topology featuring:
-* Peer-to-peer opportunistic packet propagation via a gossip communication protocol.
-* Multi-hop routing controls with dynamic Time-To-Live (TTL) limits to prevent infinite data loops.
-* Edge bridge nodes (`hasInternet=true`) that buffer and flush accumulated payloads into the cloud ledger once network connectivity is recovered.
+The system simulates decentralized transaction propagation using:
+
+- Peer-to-peer forwarding
+- Gossip-style packet propagation
+- Multi-hop routing
+- Time-To-Live (TTL) limits
+- Internet-enabled bridge nodes
+
+A transaction can travel across multiple offline devices before eventually reaching the backend settlement service.
 
 ## Transaction Settlement Pipeline
-The backend gateway processes every incoming payload through a zero-trust sequence:
-1. **Ciphertext Hashing:** Calculates a SHA-256 footprint of the raw encrypted data block.
-2. **Idempotency Claim:** Atomically checks the in-memory registry to drop duplicates early.
-3. **Hybrid Decryption:** Unwraps the ephemeral session key via RSA-OAEP and decrypts the core message block.
-4. **Integrity Verification:** Evaluates the AES-GCM authentication tag to catch any bit-level payload tampering.
-5. **Freshness Validation:** Compares signed internal timestamps against a strict expiration window.
-6. **Atomic Account Settlement:** Executes account debits and credits within an isolated database transaction.
-7. **Ledger Persistence:** Commits a historical trace log containing the packet hash and settlement metadata.
+Every incoming packet passes through a zero-trust validation pipeline:
+
+1. Generate SHA-256 hash of encrypted packet
+2. Atomically claim idempotency ownership
+3. Decrypt transaction securely
+4. Validate AES-GCM integrity tag
+5. Verify timestamps and replay windows
+6. Execute atomic account settlement
+7. Persist transaction history safely
+
+Settlement operations use:
+
+- Spring transactional boundaries
+- Optimistic locking via JPA `@Version`
+- ACID-compliant database updates
 
 ---
 
 # System Architecture
 
-```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         OFFLINE CLIENT NODE                             │
-│  PaymentInstruction { sender, receiver, amount, pinHash, nonce, time }  │
-│              │                                                          │
-│              ▼ Encrypt via Server's RSA Public Key                      │
-│   MeshPacket { packetId, ttl, createdAt, ciphertext }                   │
-└──────────────────────────────────────┬──────────────────────────────────┘
-                                       │ Peer-to-Peer Mesh Propagation
-                                       ▼
-        ┌─────────┐  Hop   ┌─────────┐  Hop   ┌─────────┐
-        │virtual- │ ─────▶ │virtual- │ ─────▶ │virtual- │ ◀── Bridge Node 
-        │device-1 │        │device-2 │        │device-3 │     Regains 4G/Internet
-        └─────────┘        └─────────┘        └────┬────┘
-                                                   │
-                                                   ▼ HTTPS POST Ingestion
-┌─────────────────────────────────────────────────────────────────────────┐
-│                     SPRING BOOT CORE LEDGER BACKEND                     │
-│                                                                         │
-│  /api/bridge/ingest                                                     │
-│       │                                                                 │
-│       ▼                                                                 │
-│  [1] SHA-256 Ciphertext Footprint Generation                            │
-│       │                                                                 │
-│       ▼                                                                 │
-│  [2] IdempotencyService.claim(hash)  ◀── Atomic Concurrent register     │
-│       │                                  Short-circuits duplicates      │
-│       ▼                                                                 │
-│  [3] HybridCryptoService.decrypt()                                      │
-│       │  └─ RSA-OAEP unpacks unique AES session key                     │
-│       │  └─ AES-256-GCM decodes transaction and validates Integrity Tag│
-│       ▼                                                                 │
-│  [4] Timestamp Validation (Replay checking window)                     │
-│       │                                                                 │
-│       ▼                                                                 │
-│  [5] SettlementService.settle()                                         │
-│          @Transactional: Atomic Balance Credit/Debit Modifications      │
-│          Optimistic Locking Safeguard via JPA @Version Verification     │
-└─────────────────────────────────────────────────────────────────────────┘
-
-```
+<img width="1453" height="1780" alt="Blank diagram" src="https://github.com/user-attachments/assets/d34d53e5-bfb1-4cab-b45b-3014e51e8f59" />
 
 ---
 
@@ -97,89 +114,56 @@ The backend gateway processes every incoming payload through a zero-trust sequen
 
 ### Problem 1: Untrusted Intermediaries (Data Confidentiality & Integrity)
 
-Because asymmetric RSA processing features strict structural data limits (~245 bytes for 2048-bit keys), it cannot directly encrypt dynamic JSON strings. MeshPay implements a standard hybrid encryption envelope pattern:
+Transactions travel through multiple unknown intermediary devices before reaching the backend.
 
-1. The client generates a unique, single-use **AES-256 key** for the transaction payload.
-2. The payload string is encrypted using **AES-256-GCM**, producing the ciphertext block and a 16-byte authentication tag.
-3. The server's public key seals the ephemeral AES key using **RSA-OAEP**.
-4. The components are packed into a uniform transport block: `[256-byte RSA wrapped key][12-byte Initialization Vector (IV)][Ciphertext + 16-byte GCM tag]`.
+To preserve confidentiality and integrity:
 
-Because AES-GCM provides fully authenticated encryption, any bit-level tampering by an intermediary carrier triggers a cryptographic exception during the backend decryption phase, rejecting the message before it touches business logic layers.
+- AES-256 encrypts transaction payloads
+- RSA-OAEP securely wraps AES session keys
+- AES-GCM authentication tags detect tampering automatically
+
+Because AES-GCM provides authenticated encryption, any payload modification immediately invalidates the integrity check during backend decryption.
 
 ### Problem 2: Concurrent Duplicate Ingestion (The Duplicate-Storm Problem)
 
-When multiple users walk out of an offline zone back into cellular coverage simultaneously, their devices execute parallel HTTPS POST requests to `/api/bridge/ingest` containing overlapping transaction sets.
+When multiple bridge nodes reconnect simultaneously, identical packets may flood the backend concurrently.
 
-By checking an atomic registry against the **ciphertext hash** rather than internal plain text IDs:
+MeshPay prevents duplicate settlement using:
 
-* The system avoids wasting CPU cycles on asymmetric RSA decryption for entries destined to be dropped.
-* It neutralizes malicious carrier attacks where internal transaction UUIDs are modified to bypass filters. Since altering any part of the ciphertext breaks the GCM envelope authentication check, any payload tampering is detected immediately on decryption.
-* Legitimate deliveries of the same packet produce identical ciphertext because the packet contents, AES session key, and IV remain unchanged across retransmissions.
-* **Database Fallback:** The backend implements a unique index constraint on `transactions.packet_hash`, ensuring that even if an in-memory cache layer fails under extreme race conditions, the transaction table forces an ACID rollback on duplicate insertions.
+- SHA-256 ciphertext fingerprints
+- Atomic compare-and-set registration
+- Database unique constraints
+- Optimistic locking safeguards
+
+Only one settlement succeeds.
+
+All duplicates are safely rejected.
 
 ### Problem 3: Replay Attack Mitigation
 
-Attackers who capture transient data payloads out of the air cannot record a ciphertext block and re-broadcast it later to continuously drain user balances. MeshPay implements a two-tier protection check:
+Attackers should not be able to capture encrypted packets and replay them later.
 
-* **Timestamp Validation:** The encrypted envelope holds an immutable `signedAt` epoch millisecond field. The gateway service rejects any packets older than 24 hours. The signature cannot be updated by an attacker without invalidating the AES-GCM authentication tag.
-* **Unique Nonce Generation:** Every generated payload is stamped with a distinct UUID nonce. Even if an account holder submits two identical back-to-back payments of ₹500, the changing nonces force distinct ciphertexts and distinct SHA-256 footprints, allowing safe, independent processing.
+MeshPay mitigates replay attacks using:
 
----
+- Signed timestamps
+- Expiration windows
+- Unique transaction nonces
 
-# Project Structure & Component Mapping
+Old or reused packets are rejected automatically.
 
-```text
-meshpay/
-├── pom.xml                                  # Dependencies & Lifecycle (Spring Boot 3.3, Java 17)
-├── mvnw, mvnw.cmd                           # Native execution wrappers (Zero-install configuration)
-└── src/
-    ├── main/
-    │   ├── java/com/demo/upimesh/
-    │   │   ├── UpiMeshApplication.java      # Application bootstrap entry point
-    │   │   │
-    │   │   ├── config/
-    │   │   │   └── AppConfig.java           # @EnableScheduling cache eviction configuration
-    │   │   │
-    │   │   ├── controller/
-    │   │   │   ├── ApiController.java       # Gateway ingestion REST endpoints & system telemetry
-    │   │   │   └── DashboardController.java # Interface routing engine
-    │   │   │
-    │   │   ├── crypto/
-    │   │   │   ├── ServerKeyHolder.java     # Automated RSA keypair lifecycle generation
-    │   │   │   └── HybridCryptoService.java # Asymmetric/Symmetric handling & SHA-256 hashing
-    │   │   │
-    │   │   ├── model/
-    │   │   │   ├── Account.java             # JPA Entity managing optimistic locking (@Version)
-    │   │   │   ├── Transaction.java         # Ledger table tracking unique packet hashes
-    │   │   │   ├── MeshPacket.java          # Envelope wire frame (Opaque ciphertext + routing meta)
-    │   │   │   └── PaymentInstruction.java  # Decrypted schema mapping plaintext payloads
-    │   │   │
-    │   │   └── service/
-    │   │       ├── BridgeIngestionService.java # Transaction orchestrator (Hash -> Claim -> Decrypt -> Settle)
-    │   │       ├── IdempotencyService.java  # Atomic lock management matching Redis SETNX behavior
-    │   │       ├── SettlementService.java   # ACID balance operations over database resources
-    │   │       ├── MeshSimulatorService.java # Network topology simulation and routing logic
-    │   │       ├── DemoService.java         # Seeds initial accounts and initializes packet generation
-    │   │       └── VirtualDevice.java       # Represents a single simulated phone node in the mesh
-    │   │
-    │   └── resources/
-    │       ├── application.properties       # Persistent database parameters and application ports
-    │       └── templates/
-    │           └── dashboard.html           # Management and observation control panel
-    └── test/java/com/demo/upimesh/
-        └── IdempotencyConcurrencyTest.java  # Parallel thread race condition test harness
-
-```
+Even two identical ₹500 payments generate different encrypted payloads because every transaction contains a unique nonce.
 
 ---
 
 # Technology Stack
 
-* **Backend Framework:** Java 17, Spring Boot 3.3, Spring Data JPA
-* **Database Layer:** H2 Embedded Relational Database Engine
-* **Cryptography Toolkit:** RSA-2048 (RSA-OAEP), AES-256-GCM, SHA-256 Hashing
-* **Concurrency Controls:** Lockless atomic compare-and-set operations via `ConcurrentHashMap`, Database Optimistic Locking via JPA `@Version`
-* **UI Layer:** Thymeleaf, Vanilla JavaScript, HTML5 / CSS3
+| Layer | Technologies Used |
+|------|------------------|
+| **Backend Framework** | Java 17, Spring Boot 3.3, Spring Data JPA |
+| **Database Layer** | H2 Embedded Relational Database Engine |
+| **Cryptography Toolkit** | RSA-2048 (RSA-OAEP), AES-256-GCM, SHA-256 Hashing |
+| **Concurrency Controls** | Lockless atomic compare-and-set operations via `ConcurrentHashMap`, Database Optimistic Locking via JPA `@Version` |
+| **UI Layer** | Thymeleaf, Vanilla JavaScript, HTML5 / CSS3 |
 
 ---
 
@@ -304,26 +288,10 @@ X-Hop-Count: 3
 
 ---
 
-# Scaling Architecture
-
-The core application code separates pure business logic from external infrastructure dependencies. Transitioning this system from a self-contained local model to a horizontally scaled architecture involves swapping out components as follows:
-
-| Component Profile | Local In-Memory Model | Scaled Infrastructure |
-| --- | --- | --- |
-| **Persistence Layer** | Embedded H2 Database Engine | Relational Cloud Datastore (e.g., PostgreSQL / AWS Aurora) |
-| **Idempotency Cache** | Localized `ConcurrentHashMap` | Distributed Cache Cluster Engine (**Redis** via `SET NX EX`) |
-| **Key Management** | In-Process Asymmetric Generation | Hardware Security Modules (**HSM** via AWS KMS / HashiCorp Vault) |
-| **Network Channels** | In-Memory Object Mesh Mapping | Physical Transport Interfaces (**BLE GATT** / Wi-Fi Direct) |
-| **Authentication Handshakes** | Open Entry Ingestion Gateways | Mutual TLS (**mTLS**) / Signed Bridge Node Certificates |
-
----
-
-# System Trade-offs & Limitations
+# Limitations
 
 MeshPay intentionally focuses on core transaction routing safety and settlement correctness under intermittent connectivity conditions. These constraints represent real-world distributed systems trade-offs (favoring Availability over Consistency under the CAP theorem):
 
-1. **The Ledger Blindspot:** Because payment signatures happen entirely off-grid, a recipient device cannot verify if the sender actually possesses the required funds in their central bank account. The payment confirmation on the sender's device represents an encrypted, signed IOU rather than a cleared transaction. If the sender's account balance is insufficient when the packet finally reaches the backend, the settlement will be marked as `REJECTED`. Real offline implementations (like *UPI Lite*) mitigate this by using a pre-funded, hardware-backed wallet to cryptographically guarantee fund availability offline.
-2. **Offline Double-Spending Risk:** A malicious actor can exploit the offline window by sending the same ₹500 balance to Node A in one location, and then routing that identical balance payload to Node B in another disconnected area. Whichever packet achieves the fastest propagation path to the backend wins settlement validation, while trailing entries are rejected at the edge layer.
-3. **Physical Radio Constraints:** Real background Bluetooth Low Energy (BLE) routines introduce device-specific engineering hurdles, such as aggressive background service power-throttling on Android and strict peripheral-mode access policies inside iOS. This repository abstracts those physical-layer behaviors to focus on the cryptographic and settlement pipeline.
-
----
+1. **Offline Balance Verification Limitation:** Because transactions are created entirely offline, recipient devices cannot verify whether the sender actually has sufficient funds at that moment. The payment behaves more like an encrypted pending request until it finally reaches the backend. If the sender’s balance is insufficient during settlement, the transaction is rejected. Real systems like UPI Lite reduce this problem using pre-funded offline wallets.
+2. **Offline Double-Spending Risk:** A malicious user could attempt to spend the same balance multiple times while devices are disconnected. For example, the same ₹500 transaction could be routed through different offline paths simultaneously. The first valid transaction reaching the backend succeeds, while later duplicates are rejected.
+3. **Real Device Networking Constraints:** Actual offline communication systems using Bluetooth Low Energy (BLE) face additional challenges such as battery optimization limits, unstable connectivity, and mobile OS background restrictions. This project simplifies those physical networking behaviors to focus mainly on cryptography, routing, and settlement logic.
