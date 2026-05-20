@@ -1,4 +1,4 @@
-# MeshPay: Distributed Offline Payment & Settlement Engine
+# MeshPay - Distributed Offline Payment & Settlement Engine
 
 MeshPay is a distributed offline payment settlement engine that makes digital payments possible even when users temporarily lose internet connectivity.
 
